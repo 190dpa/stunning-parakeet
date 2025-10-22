@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>🛒 Dollya Store - Dashboard Integrado</title>
+<style>
+/* Reset básico */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #1b1b2f, #2b2b45);
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+/* Cabeçalho */
+h1 {
+  font-size: 2.5rem;
+  color: #f39c12;
+  text-shadow: 0 0 15px #f39c12;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* Cards container */
+#cards {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 600px;
+}
+
+/* Card estilizado */
+.card {
+  background: linear-gradient(145deg, #2a2a40, #2f2f55);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.7);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s, box-shadow 0.3s;
+  position: relative;
+}
+.card:hover { transform: translateY(-5px); box-shadow: 0 12px 25px #f39c12; }
+
+/* Título do card */
+.card h2 {
+  font-size: 1.6rem;
+  text-align: center;
+  color: #f1c40f;
+  text-shadow: 0 0 5px #f1c40f;
+  margin-bottom: 15px;
+}
+
+/* Labels */
+.label {
+  font-weight: bold;
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+}
+
+/* Inputs */
+input {
+  padding: 8px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  margin-bottom: 10px;
+  font-size: 1rem;
+  color: #000;
+}
+input:focus { border: 2px solid #f39c12; }
+
+/* Barras de estoque */
+.stock-bar {
+  height: 15px;
+  border-radius: 7px;
+  background: #27ae60;
+  margin-bottom: 10px;
+  transition: width 0.5s, background 0.5s;
+}
+.stock-bar.low { background: #e67e22; }
+.stock-bar.out { background: #e74c3c; animation: blink 1s infinite; }
+@keyframes blink { 0%,50%,100% {opacity:1;} 25%,75% {opacity:0.3;} }
+
+/* Botão atualizar */
+button {
+  margin-top: 20px;
+  padding: 15px 35px;
+  background: #f39c12;
+  color: #000;
+  font-weight: bold;
+  border: none;
+  border-radius: 15px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  box-shadow: 0 0 10px #f39c12;
+  transition: 0.3s;
+}
+button:hover { background: #e67e22; box-shadow: 0 0 20px #e67e22; }
+
+/* Notificações internas */
+#notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  min-width: 250px;
+  padding: 15px 20px;
+  background: #27ae60;
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.5);
+  font-weight: bold;
+  display: none;
+  z-index: 1000;
+  animation: slideIn 0.5s forwards;
+}
+#notification.error { background: #e74c3c; }
+@keyframes slideIn {0%{transform:translateX(300px);opacity:0;}100%{transform:translateX(0);opacity:1;}}
+
+footer { margin-top: 40px; font-size: 0.9rem; color: #aaa; text-align: center; }
+</style>
+</head>
+<body>
+<h1>🛒 Dollya Store - Dashboard Integrado</h1>
+
+<form id="stockForm">
+  <div id="cards"></div>
+  <button type="submit">💾 Atualizar Embed</button>
+</form>
+
+<div id="notification"></div>
+<footer>© 2025 Dollya Store - Plants vs Brainrots</footer>
+
+<script>
+const webhookURL = 'https://discord.com/api/webhooks/SEU_WEBHOOK';
+let messageId = '1430373050779697288'; // ID da última mensagem que você quer editar
+
+let stock = [
+  { id:"TOMATRIO", name:"TOMATRIO", emoji:"🍅", quantity:0, price:0, max:300 },
+  { id:"MANGO", name:"MANGO", emoji:"🥭", quantity:0, price:0, max:300 },
+  { id:"MR_CARROT", name:"MR CARROT", emoji:"🥕", quantity:0, price:0, max:150 },
+  { id:"PLANTA", name:"PLANTA (100k ~ 500k DPS)", emoji:"🌱", quantity:0, price:0, max:20 }
+];
+
+const cardsDiv = document.getElementById('cards');
+const notification = document.getElementById('notification');
+
+function showNotification(msg,type='success'){
+  notification.textContent = msg;
+  notification.className = type==='error'?'error':'';
+  notification.style.display='block';
+  setTimeout(()=>{ notification.style.display='none'; },3000);
+}
+
+function createCards(){
+  cardsDiv.innerHTML='';
+  stock.forEach(item=>{
+    const card=document.createElement('div');
+    card.className='card';
+    let stockClass='';
+    if(item.quantity===0) stockClass='out';
+    else if(item.quantity/item.max <0.2) stockClass='low';
+    const barWidth=Math.min(100,(item.quantity/item.max)*100);
+    card.innerHTML=`
+      <h2>${item.emoji} ${item.name}</h2>
+      <label class="label">Estoque:</label>
+      <div class="stock-bar ${stockClass}" style="width:${barWidth}%;"></div>
+      <input type="number" name="${item.id}_quantity" value="${item.quantity}" min="0">
+      <label class="label">Preço (R$):</label>
+      <input type="number" name="${item.id}_price" value="${item.price}" min="0" step="0.01">
+    `;
+    cardsDiv.appendChild(card);
+  });
+}
+
+// Fetch inicial da última mensagem do webhook
+async function fetchLastStock(){
+  try{
+    const res=await fetch(`https://discord.com/api/webhooks/SEU_WEBHOOK/messages/${messageId}`);
+    const data=await res.json();
+    if(data.embeds && data.embeds.length>0){
+      const fields=data.embeds[0].fields;
+      stock=stock.map(item=>{
+        const f=fields.find(field=>field.name.includes(item.name));
+        if(f){
+          const matchQty=f.value.match(/Estoque:\s(\d+|ESGOTADO)/);
+          const matchPrice=f.value.match(/Preço:\sR\$(\d+(\.\d+)?)/);
+          return {...item,
+            quantity: matchQty?(matchQty[1]==='ESGOTADO'?0:Number(matchQty[1])):item.quantity,
+            price: matchPrice?Number(matchPrice[1]):item.price
+          };
+        }
+        return item;
+      });
+    }
+    createCards();
+    showNotification('Stock carregado com sucesso!');
+  }catch(err){
+    console.error(err);
+    showNotification('Erro ao carregar stock','error');
+  }
+}
+
+fetchLastStock();
+
+createCards();
+
+// Atualiza barra dinamicamente ao digitar
+cardsDiv.addEventListener('input', e=>{
+  const input=e.target;
+  if(input.name.endsWith('_quantity')){
+    const value=Number(input.value);
+    const bar=input.previousElementSibling;
+    if(value===0) bar.className='stock-bar out';
+    else if(value/100<0.2) bar.className='stock-bar low';
+    else bar.className='stock-bar';
+    bar.style.width=`${Math.min(100,value)}%`;
+  }
+});
+
+// Submissão do formulário
+document.getElementById('stockForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const data={};
+  new FormData(e.target).forEach((value,key)=>data[key]=value);
+  try{
+    await fetch(`/update-stock`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    showNotification('Embed atualizado com sucesso!');
+    Object.keys(data).forEach(key=>{
+      const stockItem=stock.find(s=>key.startsWith(s.id));
+      if(stockItem){
+        if(key.endsWith('_quantity')) stockItem.quantity=Number(data[key]);
+        if(key.endsWith('_price')) stockItem.price=Number(data[key]);
+      }
+    });
+    createCards();
+  }catch(err){
+    console.error(err);
+    showNotification('Erro ao atualizar embed','error');
+  }
+});
+</script>
+</body>
+</html>
